@@ -1,7 +1,5 @@
 "use strict";
 
-/* eslint-disable jsdoc/require-jsdoc */
-
 (function main() {
   // DOM elements
   var markdown = document.getElementById("markdown");
@@ -16,6 +14,7 @@
   var markdownit = window.markdownit({ "html": true });
   var newLineRe = /\r\n|\r|\n/;
   var hashPrefix = "%m";
+  var allLintErrors = [];
 
   // Do-nothing function
   function noop() {}
@@ -56,8 +55,8 @@
       "handleRuleFailures": true,
       "resultVersion": 3
     };
-    var results = window.markdownlint.sync(options);
-    violations.innerHTML = results.content.map(function mapResult(result) {
+    allLintErrors = window.markdownlint.sync(options).content;
+    violations.innerHTML = allLintErrors.map(function mapResult(result) {
       var ruleName = result.ruleNames.slice(0, 2).join(" / ");
       return "<em><a href='#line' target='" + result.lineNumber + "'>" +
         result.lineNumber + "</a></em> - <a href='" + result.ruleInformation +
@@ -125,9 +124,11 @@
   function onViolationClick(e) {
     switch (e.target.hash) {
       case "#fix":
-        var error = JSON.parse(decodeURIComponent(e.target.target));
-        var errors = [ error ];
-        var fixed = window.helpers.applyFixes(markdown.value, errors);
+        var errors = e.shiftKey ?
+          allLintErrors :
+          [ JSON.parse(decodeURIComponent(e.target.target)) ];
+        var fixed =
+          window.markdownlintRuleHelpers.applyFixes(markdown.value, errors);
         markdown.value = fixed;
         onMarkdownInput();
         e.preventDefault();
@@ -164,6 +165,10 @@
     e.preventDefault();
   }
 
+  // Show library version
+  document.getElementById("version").textContent =
+    "(v" + window.markdownlint.getVersion() + ")";
+
   // Add event listeners
   document.body.addEventListener("dragover", onDragOver);
   document.body.addEventListener("drop", onDrop);
@@ -185,7 +190,8 @@
     "Content gets parsed and displayed in the upper-right box; rule violations (if any) show up in the lower-right box.",
     "Click a violation for information about it or click its line number to highlighted it in the lower-left box.",
     "",
-    "> *Note*: [All rules](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md) are enabled except [MD013/line-length](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md#md013) and [MD002/first-heading-h1](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md#md002) (deprecated). ",
+    "> *Note*: [All rules](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md) are enabled except [MD013/line-length](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md#md013).",
+    "> ([MD002/first-heading-h1](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md#md002) and [MD006/ul-start-left](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md#md006) are deprecated.)",
     "",
     "",
     "#### Resources",
@@ -204,7 +210,7 @@
   // Update Markdown from hash (if present)
   if (window.location.hash) {
     try {
-      const decodedHash = decodeURIComponent(window.location.hash.substring(1));
+      var decodedHash = decodeURIComponent(window.location.hash.substring(1));
       if (hashPrefix === decodedHash.substring(0, hashPrefix.length)) {
         markdown.value = decodedHash.substring(hashPrefix.length);
       }

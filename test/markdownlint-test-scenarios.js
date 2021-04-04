@@ -5,13 +5,10 @@
 const fs = require("fs");
 const path = require("path");
 const { promisify } = require("util");
-const tape = require("tape");
-require("tape-player");
-const packageJson = require("../package.json");
+const test = require("ava").default;
+const { version } = require("../package.json");
 const markdownlint = require("../lib/markdownlint");
 const helpers = require("../helpers");
-const defaultConfig = require("./markdownlint-test-default-config.json");
-const version = packageJson.version;
 
 /**
  * Create a test function for the specified test file.
@@ -21,13 +18,13 @@ const version = packageJson.version;
  */
 function createTestForFile(file) {
   const markdownlintPromise = promisify(markdownlint);
-  return function testForFile(test) {
+  return function testForFile(t) {
     const detailedResults = /[/\\]detailed-results-/.test(file);
-    test.plan(detailedResults ? 3 : 2);
+    t.plan(detailedResults ? 3 : 2);
     const resultsFile = file.replace(/\.md$/, ".results.json");
     const fixedFile = file.replace(/\.md$/, ".md.fixed");
     const configFile = file.replace(/\.md$/, ".json");
-    let mergedConfig = null;
+    let config = null;
     const actualPromise = fs.promises.stat(configFile)
       .then(
         function configFileExists() {
@@ -38,14 +35,15 @@ function createTestForFile(file) {
           return {};
         })
       .then(
-        function lintWithConfig(config) {
-          mergedConfig = {
-            ...defaultConfig,
-            ...config
-          };
+        function captureConfig(configResult) {
+          config = configResult;
+        }
+      )
+      .then(
+        function lintWithConfig() {
           return markdownlintPromise({
             "files": [ file ],
-            "config": mergedConfig,
+            config,
             "resultVersion": detailedResults ? 2 : 3
           });
         })
@@ -55,7 +53,7 @@ function createTestForFile(file) {
             Promise.all([
               markdownlintPromise({
                 "files": [ file ],
-                "config": mergedConfig,
+                config,
                 "resultVersion": 3
               }),
               fs.promises.readFile(file, "utf8"),
@@ -67,8 +65,7 @@ function createTestForFile(file) {
                 const actual = helpers.applyFixes(content, errors);
                 // Uncomment the following line to update *.md.fixed files
                 // fs.writeFileSync(fixedFile, actual, "utf8");
-                test.equal(actual, expected,
-                  "Unexpected output from applyFixes.");
+                t.is(actual, expected, "Unexpected output from applyFixes.");
                 return resultVersion2or3;
               }) :
             resultVersion2or3;
@@ -129,18 +126,18 @@ function createTestForFile(file) {
             });
             return sortedResults;
           });
-    Promise.all([ actualPromise, expectedPromise ])
+    return Promise.all([ actualPromise, expectedPromise ])
       .then(
         function compareResults(fulfillments) {
           const [ [ actual0, actual2or3 ], expected ] = fulfillments;
           const actual = detailedResults ? actual2or3 : actual0;
-          test.deepEqual(actual, expected, "Line numbers are not correct.");
+          t.deepEqual(actual, expected, "Line numbers are not correct.");
           return actual2or3;
         })
       .then(
         function verifyFixes(errors) {
           if (detailedResults) {
-            return test.ok(true);
+            return t.true(true);
           }
           return fs.promises.readFile(file, "utf8")
             .then(
@@ -150,7 +147,7 @@ function createTestForFile(file) {
                   "strings": {
                     "input": corrections
                   },
-                  "config": mergedConfig,
+                  config,
                   "resultVersion": 3
                 });
               })
@@ -158,16 +155,16 @@ function createTestForFile(file) {
               function checkFixes(newErrors) {
                 const unfixed = newErrors.input
                   .filter((error) => !!error.fixInfo);
-                test.deepEqual(unfixed, [], "Fixable error was not fixed.");
+                t.deepEqual(unfixed, [], "Fixable error was not fixed.");
               }
             );
         })
       .catch()
-      .then(test.done);
+      .then(t.done);
   };
 }
 
 fs.readdirSync("./test")
   .filter((file) => /\.md$/.test(file))
   // @ts-ignore
-  .forEach((file) => tape(file, createTestForFile(path.join("./test", file))));
+  .forEach((file) => test(file, createTestForFile(path.join("./test", file))));

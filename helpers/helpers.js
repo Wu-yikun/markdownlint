@@ -12,12 +12,12 @@ module.exports.newLineRe = newLineRe;
 // Regular expression for matching common front matter (YAML and TOML)
 module.exports.frontMatterRe =
   // eslint-disable-next-line max-len
-  /((^---\s*$[^]*?^---\s*$)|(^\+\+\+\s*$[^]*?^(\+\+\+|\.\.\.)\s*$))(\r\n|\r|\n|$)/m;
+  /((^---\s*$[^]*?^---\s*$)|(^\+\+\+\s*$[^]*?^(\+\+\+|\.\.\.)\s*$)|(^\{\s*$[^]*?^\}\s*$))(\r\n|\r|\n|$)/m;
 
 // Regular expression for matching inline disable/enable comments
 const inlineCommentRe =
   // eslint-disable-next-line max-len
-  /<!--\s*markdownlint-(?:(?:(disable|enable|capture|restore|disable-file|enable-file)((?:\s+[a-z0-9_-]+)*))|(?:(configure-file)\s+([\s\S]*?)))\s*-->/ig;
+  /<!--\s*markdownlint-(?:(?:(disable|enable|capture|restore|disable-file|enable-file|disable-next-line)((?:\s+[a-z0-9_-]+)*))|(?:(configure-file)\s+([\s\S]*?)))\s*-->/ig;
 module.exports.inlineCommentRe = inlineCommentRe;
 
 // Regular expressions for range matching
@@ -35,7 +35,11 @@ const linkRe = /\[(?:[^[\]]|\[[^\]]*\])*\](?:\(\S*\))?/g;
 module.exports.utf8Encoding = "utf8";
 
 // All punctuation characters (normal and full-width)
-module.exports.allPunctuation = ".,;:!?。，；：！？";
+const allPunctuation = ".,;:!?。，；：！？";
+module.exports.allPunctuation = allPunctuation;
+
+// All punctuation characters without question mark (normal and full-width)
+module.exports.allPunctuationNoQuestion = allPunctuation.replace(/[?？]/gu, "");
 
 // Returns true iff the input is a number
 module.exports.isNumber = function isNumber(obj) {
@@ -95,32 +99,47 @@ module.exports.includesSorted = function includesSorted(array, element) {
   return false;
 };
 
-// Replaces the text of all properly-formatted HTML comments with whitespace
+// Replaces the content of properly-formatted CommonMark comments with "."
 // This preserves the line/column information for the rest of the document
-// Trailing whitespace is avoided with a '\' character in the last column
-// See https://www.w3.org/TR/html5/syntax.html#comments for details
+// https://spec.commonmark.org/0.29/#html-blocks
+// https://spec.commonmark.org/0.29/#html-comment
 const htmlCommentBegin = "<!--";
 const htmlCommentEnd = "-->";
 module.exports.clearHtmlCommentText = function clearHtmlCommentText(text) {
   let i = 0;
   while ((i = text.indexOf(htmlCommentBegin, i)) !== -1) {
-    const j = text.indexOf(htmlCommentEnd, i);
+    const j = text.indexOf(htmlCommentEnd, i + 2);
     if (j === -1) {
       // Un-terminated comments are treated as text
       break;
     }
-    const comment = text.slice(i + htmlCommentBegin.length, j);
-    if ((comment.length > 0) &&
-        (comment[0] !== ">") &&
-        (comment[comment.length - 1] !== "-") &&
-        !comment.includes("--") &&
-        (text.slice(i, j + htmlCommentEnd.length)
-          .search(inlineCommentRe) === -1)) {
-      const blanks = comment
-        .replace(/[^\r\n]/g, " ")
-        .replace(/ ([\r\n])/g, "\\$1");
-      text = text.slice(0, i + htmlCommentBegin.length) +
-        blanks + text.slice(j);
+    // If the comment has content...
+    if (j > i + htmlCommentBegin.length) {
+      let k = i - 1;
+      while (text[k] === " ") {
+        k--;
+      }
+      // If comment is not within an indented code block...
+      if (k >= i - 4) {
+        const content = text.slice(i + htmlCommentBegin.length, j);
+        const isBlock = (k < 0) || (text[k] === "\n");
+        const isValid = isBlock ||
+          (!content.startsWith(">") && !content.startsWith("->") &&
+           !content.endsWith("-") && !content.includes("--"));
+        // If a valid block/inline comment...
+        if (isValid) {
+          const inlineCommentIndex = text
+            .slice(i, j + htmlCommentEnd.length)
+            .search(inlineCommentRe);
+          // If not a markdownlint inline directive...
+          if (inlineCommentIndex === -1) {
+            text =
+              text.slice(0, i + htmlCommentBegin.length) +
+              content.replace(/[^\r\n]/g, ".") +
+              text.slice(j);
+          }
+        }
+      }
     }
     i = j + htmlCommentEnd.length;
   }
@@ -169,7 +188,7 @@ module.exports.fencedCodeBlockStyleFor =
  */
 function indentFor(token) {
   const line = token.line.replace(/^[\s>]*(> |>)/, "");
-  return line.length - line.trimLeft().length;
+  return line.length - line.trimStart().length;
 }
 module.exports.indentFor = indentFor;
 
@@ -219,37 +238,56 @@ function filterTokens(params, type, handler) {
 }
 module.exports.filterTokens = filterTokens;
 
+/**
+ * Returns whether a token is a math block (created by markdown-it-texmath).
+ *
+ * @param {Object} token MarkdownItToken instance.
+ * @returns {boolean} True iff token is a math block.
+ */
+function isMathBlock(token) {
+  return (
+    (token.tag === "math") &&
+    token.type.startsWith("math_block") &&
+    !token.type.endsWith("_end")
+  );
+}
+
 // Get line metadata array
 module.exports.getLineMetadata = function getLineMetadata(params) {
-  const lineMetadata = params.lines.map(function mapLine(line, index) {
-    return [ line, index, false, 0, false, false ];
-  });
-  filterTokens(params, "fence", function forToken(token) {
+  const lineMetadata = params.lines.map(
+    (line, index) => [ line, index, false, 0, false, false, false, false ]
+  );
+  filterTokens(params, "fence", (token) => {
     lineMetadata[token.map[0]][3] = 1;
     lineMetadata[token.map[1] - 1][3] = -1;
     for (let i = token.map[0] + 1; i < token.map[1] - 1; i++) {
       lineMetadata[i][2] = true;
     }
   });
-  filterTokens(params, "code_block", function forToken(token) {
+  filterTokens(params, "code_block", (token) => {
     for (let i = token.map[0]; i < token.map[1]; i++) {
       lineMetadata[i][2] = true;
     }
   });
-  filterTokens(params, "table_open", function forToken(token) {
+  filterTokens(params, "table_open", (token) => {
     for (let i = token.map[0]; i < token.map[1]; i++) {
       lineMetadata[i][4] = true;
     }
   });
-  filterTokens(params, "list_item_open", function forToken(token) {
+  filterTokens(params, "list_item_open", (token) => {
     let count = 1;
     for (let i = token.map[0]; i < token.map[1]; i++) {
       lineMetadata[i][5] = count;
       count++;
     }
   });
-  filterTokens(params, "hr", function forToken(token) {
+  filterTokens(params, "hr", (token) => {
     lineMetadata[token.map[0]][6] = true;
+  });
+  params.tokens.filter(isMathBlock).forEach((token) => {
+    for (let i = token.map[0]; i < token.map[1]; i++) {
+      lineMetadata[i][7] = true;
+    }
   });
   return lineMetadata;
 };
@@ -257,7 +295,8 @@ module.exports.getLineMetadata = function getLineMetadata(params) {
 // Calls the provided function for each line (with context)
 module.exports.forEachLine = function forEachLine(lineMetadata, handler) {
   lineMetadata.forEach(function forMetadata(metadata) {
-    // Parameters: line, lineIndex, inCode, onFence, inTable, inItem, inBreak
+    // Parameters:
+    // line, lineIndex, inCode, onFence, inTable, inItem, inBreak, inMath
     handler(...metadata);
   });
 };
@@ -270,7 +309,11 @@ module.exports.flattenLists = function flattenLists(params) {
   let nesting = 0;
   const nestingStack = [];
   let lastWithMap = { "map": [ 0, 1 ] };
-  params.tokens.forEach(function forToken(token) {
+  params.tokens.forEach((token) => {
+    if (isMathBlock(token) && token.map[1]) {
+      // markdown-it-texmath plugin does not account for math_block_end
+      token.map[1]++;
+    }
     if ((token.type === "bullet_list_open") ||
         (token.type === "ordered_list_open")) {
       // Save current context and start a new one
@@ -494,7 +537,10 @@ module.exports.frontMatterHasTitle =
     const ignoreFrontMatter =
       (frontMatterTitlePattern !== undefined) && !frontMatterTitlePattern;
     const frontMatterTitleRe =
-      new RegExp(String(frontMatterTitlePattern || "^\\s*title\\s*[:=]"), "i");
+      new RegExp(
+        String(frontMatterTitlePattern || "^\\s*\"?title\"?\\s*[:=]"),
+        "i"
+      );
     return !ignoreFrontMatter &&
       frontMatterLines.some((line) => frontMatterTitleRe.test(line));
   };
@@ -677,8 +723,9 @@ module.exports.applyFixes = function applyFixes(input, errors) {
     const editIndex = editColumn - 1;
     if (
       (lineIndex !== lastLineIndex) ||
-      ((editIndex + deleteCount) < lastEditIndex) ||
-      (deleteCount === -1)
+      (deleteCount === -1) ||
+      ((editIndex + deleteCount) <=
+        (lastEditIndex - ((deleteCount > 0) ? 0 : 1)))
     ) {
       lines[lineIndex] = applyFix(lines[lineIndex], fixInfo, lineEnding);
     }

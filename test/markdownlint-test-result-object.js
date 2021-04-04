@@ -2,32 +2,31 @@
 
 "use strict";
 
-const tape = require("tape");
-require("tape-player");
+const test = require("ava").default;
 const packageJson = require("../package.json");
 const markdownlint = require("../lib/markdownlint");
 const homepage = packageJson.homepage;
 const version = packageJson.version;
 
-tape("resultObjectToStringNotEnumerable", (test) => {
-  test.plan(2);
+test.cb("resultObjectToStringNotEnumerable", (t) => {
+  t.plan(2);
   const options = {
     "strings": {
       "string": "# Heading"
     }
   };
   markdownlint(options, function callback(err, result) {
-    test.ifError(err);
+    t.falsy(err);
     // eslint-disable-next-line guard-for-in
     for (const property in result) {
-      test.notEqual(property, "toString", "Function should not enumerate.");
+      t.not(property, "toString", "Function should not enumerate.");
     }
-    test.end();
+    t.end();
   });
 });
 
-tape("resultFormattingV0", (test) => {
-  test.plan(4);
+test.cb("resultFormattingV0", (t) => {
+  t.plan(4);
   const options = {
     "files": [
       "./test/atx_heading_spacing.md",
@@ -40,7 +39,7 @@ tape("resultFormattingV0", (test) => {
     "resultVersion": 0
   };
   markdownlint(options, function callback(err, actualResult) {
-    test.ifError(err);
+    t.falsy(err);
     const expectedResult = {
       "./test/atx_heading_spacing.md": {
         "MD002": [ 3 ],
@@ -51,11 +50,12 @@ tape("resultFormattingV0", (test) => {
         "MD002": [ 1 ]
       }
     };
-    test.deepEqual(actualResult, expectedResult, "Undetected issues.");
+    // @ts-ignore
+    t.deepEqual(actualResult, expectedResult, "Undetected issues.");
     let actualMessage = actualResult.toString();
     let expectedMessage =
       "./test/atx_heading_spacing.md: 3: MD002" +
-      " First heading should be a top level heading\n" +
+      " First heading should be a top-level heading\n" +
       "./test/atx_heading_spacing.md: 1: MD018" +
       " No space after hash on atx style heading\n" +
       "./test/atx_heading_spacing.md: 3: MD019" +
@@ -63,13 +63,13 @@ tape("resultFormattingV0", (test) => {
       "./test/atx_heading_spacing.md: 5: MD019" +
       " Multiple spaces after hash on atx style heading\n" +
       "./test/first_heading_bad_atx.md: 1: MD002" +
-      " First heading should be a top level heading";
-    test.equal(actualMessage, expectedMessage, "Incorrect message (name).");
+      " First heading should be a top-level heading";
+    t.is(actualMessage, expectedMessage, "Incorrect message (name).");
     // @ts-ignore
     actualMessage = actualResult.toString(true);
     expectedMessage =
       "./test/atx_heading_spacing.md: 3: first-heading-h1" +
-      " First heading should be a top level heading\n" +
+      " First heading should be a top-level heading\n" +
       "./test/atx_heading_spacing.md: 1: no-missing-space-atx" +
       " No space after hash on atx style heading\n" +
       "./test/atx_heading_spacing.md: 3: no-multiple-space-atx" +
@@ -77,14 +77,14 @@ tape("resultFormattingV0", (test) => {
       "./test/atx_heading_spacing.md: 5: no-multiple-space-atx" +
       " Multiple spaces after hash on atx style heading\n" +
       "./test/first_heading_bad_atx.md: 1: first-heading-h1" +
-      " First heading should be a top level heading";
-    test.equal(actualMessage, expectedMessage, "Incorrect message (alias).");
-    test.end();
+      " First heading should be a top-level heading";
+    t.is(actualMessage, expectedMessage, "Incorrect message (alias).");
+    t.end();
   });
 });
 
-tape("resultFormattingSyncV0", (test) => {
-  test.plan(3);
+test("resultFormattingSyncV0", (t) => {
+  t.plan(3);
   const options = {
     "files": [
       "./test/atx_heading_spacing.md",
@@ -107,11 +107,12 @@ tape("resultFormattingSyncV0", (test) => {
       "MD002": [ 1 ]
     }
   };
-  test.deepEqual(actualResult, expectedResult, "Undetected issues.");
+  // @ts-ignore
+  t.deepEqual(actualResult, expectedResult, "Undetected issues.");
   let actualMessage = actualResult.toString();
   let expectedMessage =
     "./test/atx_heading_spacing.md: 3: MD002" +
-    " First heading should be a top level heading\n" +
+    " First heading should be a top-level heading\n" +
     "./test/atx_heading_spacing.md: 1: MD018" +
     " No space after hash on atx style heading\n" +
     "./test/atx_heading_spacing.md: 3: MD019" +
@@ -119,13 +120,13 @@ tape("resultFormattingSyncV0", (test) => {
     "./test/atx_heading_spacing.md: 5: MD019" +
     " Multiple spaces after hash on atx style heading\n" +
     "./test/first_heading_bad_atx.md: 1: MD002" +
-    " First heading should be a top level heading";
-  test.equal(actualMessage, expectedMessage, "Incorrect message (name).");
+    " First heading should be a top-level heading";
+  t.is(actualMessage, expectedMessage, "Incorrect message (name).");
   // @ts-ignore
   actualMessage = actualResult.toString(true);
   expectedMessage =
     "./test/atx_heading_spacing.md: 3: first-heading-h1" +
-    " First heading should be a top level heading\n" +
+    " First heading should be a top-level heading\n" +
     "./test/atx_heading_spacing.md: 1: no-missing-space-atx" +
     " No space after hash on atx style heading\n" +
     "./test/atx_heading_spacing.md: 3: no-multiple-space-atx" +
@@ -133,13 +134,12 @@ tape("resultFormattingSyncV0", (test) => {
     "./test/atx_heading_spacing.md: 5: no-multiple-space-atx" +
     " Multiple spaces after hash on atx style heading\n" +
     "./test/first_heading_bad_atx.md: 1: first-heading-h1" +
-    " First heading should be a top level heading";
-  test.equal(actualMessage, expectedMessage, "Incorrect message (alias).");
-  test.end();
+    " First heading should be a top-level heading";
+  t.is(actualMessage, expectedMessage, "Incorrect message (alias).");
 });
 
-tape("resultFormattingV1", (test) => {
-  test.plan(3);
+test.cb("resultFormattingV1", (t) => {
+  t.plan(3);
   const options = {
     "strings": {
       "truncate":
@@ -156,7 +156,7 @@ tape("resultFormattingV1", (test) => {
     "resultVersion": 1
   };
   markdownlint(options, function callback(err, actualResult) {
-    test.ifError(err);
+    t.falsy(err);
     const expectedResult = {
       "truncate": [
         { "lineNumber": 1,
@@ -173,7 +173,7 @@ tape("resultFormattingV1", (test) => {
         { "lineNumber": 3,
           "ruleName": "MD002",
           "ruleAlias": "first-heading-h1",
-          "ruleDescription": "First heading should be a top level heading",
+          "ruleDescription": "First heading should be a top-level heading",
           "ruleInformation": `${homepage}/blob/v${version}/doc/Rules.md#md002`,
           "errorDetail": "Expected: h1; Actual: h2",
           "errorContext": null,
@@ -207,18 +207,19 @@ tape("resultFormattingV1", (test) => {
         { "lineNumber": 1,
           "ruleName": "MD002",
           "ruleAlias": "first-heading-h1",
-          "ruleDescription": "First heading should be a top level heading",
+          "ruleDescription": "First heading should be a top-level heading",
           "ruleInformation": `${homepage}/blob/v${version}/doc/Rules.md#md002`,
           "errorDetail": "Expected: h1; Actual: h2",
           "errorContext": null,
           "errorRange": null }
       ]
     };
-    test.deepEqual(actualResult, expectedResult, "Undetected issues.");
+    // @ts-ignore
+    t.deepEqual(actualResult, expectedResult, "Undetected issues.");
     const actualMessage = actualResult.toString();
     const expectedMessage =
       "./test/atx_heading_spacing.md: 3: MD002/first-heading-h1" +
-      " First heading should be a top level heading" +
+      " First heading should be a top-level heading" +
       " [Expected: h1; Actual: h2]\n" +
       "./test/atx_heading_spacing.md: 1: MD018/no-missing-space-atx" +
       " No space after hash on atx style heading" +
@@ -230,18 +231,18 @@ tape("resultFormattingV1", (test) => {
       " Multiple spaces after hash on atx style heading" +
       " [Context: \"##   Heading 3 {MD019}\"]\n" +
       "./test/first_heading_bad_atx.md: 1: MD002/first-heading-h1" +
-      " First heading should be a top level heading" +
+      " First heading should be a top-level heading" +
       " [Expected: h1; Actual: h2]\n" +
       "truncate: 1: MD021/no-multiple-space-closed-atx" +
       " Multiple spaces inside hashes on closed atx style heading" +
       " [Context: \"#  Multiple spa...tyle heading  #\"]";
-    test.equal(actualMessage, expectedMessage, "Incorrect message.");
-    test.end();
+    t.is(actualMessage, expectedMessage, "Incorrect message.");
+    t.end();
   });
 });
 
-tape("resultFormattingV2", (test) => {
-  test.plan(3);
+test.cb("resultFormattingV2", (t) => {
+  t.plan(3);
   const options = {
     "strings": {
       "truncate":
@@ -257,7 +258,7 @@ tape("resultFormattingV2", (test) => {
     }
   };
   markdownlint(options, function callback(err, actualResult) {
-    test.ifError(err);
+    t.falsy(err);
     const expectedResult = {
       "truncate": [
         { "lineNumber": 1,
@@ -272,7 +273,7 @@ tape("resultFormattingV2", (test) => {
       "./test/atx_heading_spacing.md": [
         { "lineNumber": 3,
           "ruleNames": [ "MD002", "first-heading-h1", "first-header-h1" ],
-          "ruleDescription": "First heading should be a top level heading",
+          "ruleDescription": "First heading should be a top-level heading",
           "ruleInformation": `${homepage}/blob/v${version}/doc/Rules.md#md002`,
           "errorDetail": "Expected: h1; Actual: h2",
           "errorContext": null,
@@ -302,19 +303,19 @@ tape("resultFormattingV2", (test) => {
       "./test/first_heading_bad_atx.md": [
         { "lineNumber": 1,
           "ruleNames": [ "MD002", "first-heading-h1", "first-header-h1" ],
-          "ruleDescription": "First heading should be a top level heading",
+          "ruleDescription": "First heading should be a top-level heading",
           "ruleInformation": `${homepage}/blob/v${version}/doc/Rules.md#md002`,
           "errorDetail": "Expected: h1; Actual: h2",
           "errorContext": null,
           "errorRange": null }
       ]
     };
-    test.deepEqual(actualResult, expectedResult, "Undetected issues.");
+    t.deepEqual(actualResult, expectedResult, "Undetected issues.");
     const actualMessage = actualResult.toString();
     const expectedMessage =
       "./test/atx_heading_spacing.md: 3:" +
       " MD002/first-heading-h1/first-header-h1" +
-      " First heading should be a top level heading" +
+      " First heading should be a top-level heading" +
       " [Expected: h1; Actual: h2]\n" +
       "./test/atx_heading_spacing.md: 1: MD018/no-missing-space-atx" +
       " No space after hash on atx style heading" +
@@ -327,18 +328,18 @@ tape("resultFormattingV2", (test) => {
       " [Context: \"##   Heading 3 {MD019}\"]\n" +
       "./test/first_heading_bad_atx.md: 1:" +
       " MD002/first-heading-h1/first-header-h1" +
-      " First heading should be a top level heading" +
+      " First heading should be a top-level heading" +
       " [Expected: h1; Actual: h2]\n" +
       "truncate: 1: MD021/no-multiple-space-closed-atx" +
       " Multiple spaces inside hashes on closed atx style heading" +
       " [Context: \"#  Multiple spa...tyle heading  #\"]";
-    test.equal(actualMessage, expectedMessage, "Incorrect message.");
-    test.end();
+    t.is(actualMessage, expectedMessage, "Incorrect message.");
+    t.end();
   });
 });
 
-tape("resultFormattingV3", (test) => {
-  test.plan(3);
+test.cb("resultFormattingV3", (t) => {
+  t.plan(3);
   const options = {
     "strings": {
       "input":
@@ -350,7 +351,7 @@ tape("resultFormattingV3", (test) => {
     "resultVersion": 3
   };
   markdownlint(options, function callback(err, actualResult) {
-    test.ifError(err);
+    t.falsy(err);
     const expectedResult = {
       "input": [
         {
@@ -423,7 +424,7 @@ tape("resultFormattingV3", (test) => {
         }
       ]
     };
-    test.deepEqual(actualResult, expectedResult, "Undetected issues.");
+    t.deepEqual(actualResult, expectedResult, "Undetected issues.");
     const actualMessage = actualResult.toString();
     const expectedMessage =
       "input: 1: MD009/no-trailing-spaces" +
@@ -436,13 +437,13 @@ tape("resultFormattingV3", (test) => {
       " Spaces inside emphasis markers [Context: \"* emphasis *\"]\n" +
       "input: 4: MD047/single-trailing-newline" +
       " Files should end with a single newline character";
-    test.equal(actualMessage, expectedMessage, "Incorrect message.");
-    test.end();
+    t.is(actualMessage, expectedMessage, "Incorrect message.");
+    t.end();
   });
 });
 
-tape("onePerLineResultVersion0", (test) => {
-  test.plan(2);
+test.cb("onePerLineResultVersion0", (t) => {
+  t.plan(2);
   const options = {
     "strings": {
       "input": "# Heading\theading\t\theading\n"
@@ -450,19 +451,20 @@ tape("onePerLineResultVersion0", (test) => {
     "resultVersion": 0
   };
   markdownlint(options, function callback(err, actualResult) {
-    test.ifError(err);
+    t.falsy(err);
     const expectedResult = {
       "input": {
         "MD010": [ 1 ]
       }
     };
-    test.deepEqual(actualResult, expectedResult, "Undetected issues.");
-    test.end();
+    // @ts-ignore
+    t.deepEqual(actualResult, expectedResult, "Undetected issues.");
+    t.end();
   });
 });
 
-tape("onePerLineResultVersion1", (test) => {
-  test.plan(2);
+test.cb("onePerLineResultVersion1", (t) => {
+  t.plan(2);
   const options = {
     "strings": {
       "input": "# Heading\theading\t\theading\n"
@@ -470,7 +472,7 @@ tape("onePerLineResultVersion1", (test) => {
     "resultVersion": 1
   };
   markdownlint(options, function callback(err, actualResult) {
-    test.ifError(err);
+    t.falsy(err);
     const expectedResult = {
       "input": [
         {
@@ -486,13 +488,14 @@ tape("onePerLineResultVersion1", (test) => {
         }
       ]
     };
-    test.deepEqual(actualResult, expectedResult, "Undetected issues.");
-    test.end();
+    // @ts-ignore
+    t.deepEqual(actualResult, expectedResult, "Undetected issues.");
+    t.end();
   });
 });
 
-tape("onePerLineResultVersion2", (test) => {
-  test.plan(2);
+test.cb("onePerLineResultVersion2", (t) => {
+  t.plan(2);
   const options = {
     "strings": {
       "input": "# Heading\theading\t\theading\n"
@@ -500,7 +503,7 @@ tape("onePerLineResultVersion2", (test) => {
     "resultVersion": 2
   };
   markdownlint(options, function callback(err, actualResult) {
-    test.ifError(err);
+    t.falsy(err);
     const expectedResult = {
       "input": [
         {
@@ -515,13 +518,13 @@ tape("onePerLineResultVersion2", (test) => {
         }
       ]
     };
-    test.deepEqual(actualResult, expectedResult, "Undetected issues.");
-    test.end();
+    t.deepEqual(actualResult, expectedResult, "Undetected issues.");
+    t.end();
   });
 });
 
-tape("manyPerLineResultVersion3", (test) => {
-  test.plan(2);
+test.cb("manyPerLineResultVersion3", (t) => {
+  t.plan(2);
   const options = {
     "strings": {
       "input": "# Heading\theading\t\theading\n"
@@ -529,7 +532,7 @@ tape("manyPerLineResultVersion3", (test) => {
     "resultVersion": 3
   };
   markdownlint(options, function callback(err, actualResult) {
-    test.ifError(err);
+    t.falsy(err);
     const expectedResult = {
       "input": [
         {
@@ -564,13 +567,13 @@ tape("manyPerLineResultVersion3", (test) => {
         }
       ]
     };
-    test.deepEqual(actualResult, expectedResult, "Undetected issues.");
-    test.end();
+    t.deepEqual(actualResult, expectedResult, "Undetected issues.");
+    t.end();
   });
 });
 
-tape("frontMatterResultVersion3", (test) => {
-  test.plan(2);
+test.cb("frontMatterResultVersion3", (t) => {
+  t.plan(2);
   const options = {
     "strings": {
       "input": "---\n---\n# Heading\nText\n"
@@ -578,7 +581,7 @@ tape("frontMatterResultVersion3", (test) => {
     "resultVersion": 3
   };
   markdownlint(options, function callback(err, actualResult) {
-    test.ifError(err);
+    t.falsy(err);
     const expectedResult = {
       "input": [
         {
@@ -598,7 +601,7 @@ tape("frontMatterResultVersion3", (test) => {
         }
       ]
     };
-    test.deepEqual(actualResult, expectedResult, "Undetected issues.");
-    test.end();
+    t.deepEqual(actualResult, expectedResult, "Undetected issues.");
+    t.end();
   });
 });

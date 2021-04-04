@@ -2,12 +2,13 @@
 .eslintrc.json
 .github
 .markdownlint.json
+.npmrc
 .vscode
 coverage
 demo/*
 !demo/markdownlint-browser.js
 example
-lib-es3
 npm-debug.log
+schema/*.js
 test
 test-repos
